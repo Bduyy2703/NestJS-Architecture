@@ -1,31 +1,49 @@
 import {
-    Column,
-    Entity,
-    OneToOne,
-    PrimaryGeneratedColumn,
-    JoinColumn,
-  } from 'typeorm';
-  import { User } from 'src/modules/users/entities/user.entity';
-  
-  @Entity({ name: 'keyToken' })
-  export class Token {
-    @PrimaryGeneratedColumn('identity')
-    id: number;
-  
-    @OneToOne(() => User)
-    @JoinColumn({ name: 'user_id' })
-    user: User;
-  
-    @Column({
-      type: 'simple-array',
-      default: '',
-    })
-    refreshTokenUsed: string[];
-  
-    @Column()
-    refreshToken: string;
-  
-    @Column()
-    accessToken: string;
-  }
-  
+  Column,
+  DataType,
+  Model,
+  Table,
+  ForeignKey,
+  BelongsTo,
+} from 'sequelize-typescript';
+import { User } from 'src/modules/users/entities/user.entity';
+
+@Table({ tableName: 'keyToken' }) // Tên bảng trong cơ sở dữ liệu
+export class Token extends Model<Token> {
+  @Column({
+    type: DataType.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  })
+  id: number;
+
+  @ForeignKey(() => User)
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: false,
+    field: 'user_id', // Tên cột trong bảng
+  })
+  userId: number;
+
+  @BelongsTo(() => User) // Quan hệ với bảng User
+  user: User;
+
+  @Column({
+    type: DataType.ARRAY(DataType.STRING),
+    allowNull: true,
+    defaultValue: [],
+  })
+  refreshTokenUsed: string[];
+
+  @Column({
+    type: DataType.STRING,
+    allowNull: false,
+  })
+  refreshToken: string;
+
+  @Column({
+    type: DataType.STRING,
+    allowNull: false,
+  })
+  accessToken: string;
+}

@@ -78,7 +78,7 @@ export class AuthController {
   }
 
   /**
-   * client click confirm email (fix
+   * client click confirm email (fixed)
    * 
    */
 

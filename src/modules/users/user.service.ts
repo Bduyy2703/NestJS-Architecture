@@ -1,67 +1,84 @@
 import { BadRequestException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { RegisterDto } from '../auth/dto/register.dto';
-import { PrismaService } from 'prisma/prisma.service';
-import { Role, User } from '@prisma/client';
 import { UpdatePasswordDto } from './dto/update-password.dto';
-import * as bcrypt from 'bcrypt';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { Token } from '../token/entities/token.entity';
+import { InjectModel } from '@nestjs/sequelize';
+import { User } from './entities/user.entity'; // Sequelize model
+import { UserInfo } from './entities/userinfo.entity'; // Sequelize model
+import * as bcrypt from 'bcrypt';
+import { Role } from 'src/common/enums/env.enum';
+
+
 @Injectable()
 export class UsersService {
-  constructor(private prismaService: PrismaService) { }
+  constructor(
+    @InjectModel(User) private userModel: typeof User,
+    @InjectModel(UserInfo) private profileModel: typeof UserInfo,
+  ) {}
 
-  async create(registerDto: RegisterDto,tokenOTP: string): Promise<User> {
-
-    const [firstname, lastname] = registerDto.username.split(' ');
-    const user = await this.prismaService.user.create({
-      data: {
+  // Tạo user mới
+  async create(registerDto: RegisterDto, tokenOTP: string): Promise<User> {
+    const user = await this.userModel.create(
+      {
         email: registerDto.email,
-        password: registerDto.password,
-        username: registerDto.username,
-        isVerified : false,
-        tokenOTP : tokenOTP,
-        profile: {
-          create: {
-            phoneNumber: registerDto.phoneNumber,
-            firstName: firstname,
-            lastName: lastname,
-          },
-        },
+        password: await bcrypt.hash(registerDto.password, 10),
+        isVerified: false,
+        tokenOTP: tokenOTP,
+        role: [Role.USER],
       },
-      include: {
-        profile: true,
+      {
+        include: [UserInfo], // Bao gồm bảng profile
       },
+    );
+    await user.$create('UserInfo', {
+      userName: registerDto.username,
+      phoneNumber: registerDto.phoneNumber,
     });
     return user;
   }
 
+  // Lấy tất cả user
   async findAll(): Promise<User[]> {
-    return await this.prismaService.user.findMany();
+    return await this.userModel.findAll({
+      include: [UserInfo], // Bao gồm thông tin profile nếu cần
+    });
   }
-
+  //get info 
+  async getUserInfo(userId: string): Promise<UserInfo> {
+    return await this.profileModel.findOne({ where: { userId } });
+  }
+  // Lấy user theo ID
   async findOneById(id: string): Promise<User> {
-    return await this.prismaService.user.findUnique({ where: { id } });
+    const user = await this.userModel.findByPk(id, { include: [UserInfo] });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
   }
 
+  // Lấy user theo email
   async findOneByEmail(email: string): Promise<User> {
-
-    const user = await this.prismaService.user.findUnique({ where: { email } });
-    return user;
+    return await this.userModel.findOne({
+      where: { email },
+    });
   }
 
+  // Lấy user theo token OTP
   async findUserByToken(tokenOTP: string): Promise<User> {
-
-    const user = await this.prismaService.user.findFirst({ where: { tokenOTP } });
-    return user;
+    return await this.userModel.findOne({
+      where: { tokenOTP },
+    });
   }
 
-  async resetPassword(id: string): Promise<any> {
+  // Reset password
+  async resetPassword(id: string): Promise<ResetPasswordDto> {
     const user = await this.findOneById(id);
 
     if (!user) {
       throw new BadRequestException('Invalid user');
     }
 
+    // Tạo mật khẩu ngẫu nhiên
     const alphabet = 'abcdefghijklmnopqrstuvwxyz';
     let randomPass = '';
 
@@ -71,40 +88,34 @@ export class UsersService {
     }
 
     const newPass = await bcrypt.hash(randomPass, 10);
-
     user.password = newPass;
 
-    await this.prismaService.user.update({
-      where: { id },
-      data: { ...user },
-    });
+    await user.save();
 
-    let res = new ResetPasswordDto();
+    const res = new ResetPasswordDto();
     res.message = 'Password reset successfully';
     res.newPassword = randomPass;
 
     return res;
   }
 
-  async updateUser(user: User): Promise<User> {
-    // Kiểm tra xem người dùng có tồn tại trong DB hay không
-    const existingUser = await this.prismaService.user.findUnique({
-      where: { id: user.id },
-    });
-
+  // Cập nhật thông tin user
+  async updateUser(user: Partial<User>): Promise<User> {
+    const existingUser = await this.userModel.findByPk(user.id);
     if (!existingUser) {
       throw new NotFoundException('User not found');
     }
 
-    // Thực hiện cập nhật
-    return await this.prismaService.user.update({
-      where: { id: user.id },
-      data: {
-        isVerified: user.isVerified, // true
-        tokenOTP: user.tokenOTP,     // null
-      },
-    });
+    // Cập nhật các thuộc tính
+    if (user.isVerified !== undefined) existingUser.isVerified = user.isVerified;
+    if (user.tokenOTP !== undefined) existingUser.tokenOTP = user.tokenOTP;
+
+    await existingUser.save();
+
+    return existingUser;
   }
+
+  // Cập nhật mật khẩu
   async updatePassword(id: string, updatePasswordDto: UpdatePasswordDto) {
     const user = await this.findOneById(id);
 
@@ -122,25 +133,18 @@ export class UsersService {
     }
 
     const newPass = await bcrypt.hash(updatePasswordDto.newPassword, 10);
-
     user.password = newPass;
 
-    try {
-      await this.prismaService.user.update({
-        where: { id },
-        data: { ...user },
-      });
+    await user.save();
 
-      return {
-        message: 'Password successfully updated',
-      };
-    } catch (err) {
-      throw new BadRequestException(err);
-    }
+    return {
+      message: 'Password successfully updated',
+    };
   }
 
+  // Xóa user theo ID
   async deleteById(id: string) {
-    const deletedUser = await this.prismaService.user.delete({ where: { id } });
+    const deletedUser = await this.userModel.destroy({ where: { id } });
 
     if (!deletedUser) {
       throw new BadRequestException("Can't delete user");

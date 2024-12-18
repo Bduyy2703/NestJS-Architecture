@@ -11,7 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { TokenService } from '../token/token.service';
 import { MailService } from '../mail/mail.service';
-import { User } from '@prisma/client';
+import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/user.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
@@ -43,12 +43,14 @@ export class AuthService {
       throw new BadRequestException("Can't register !");
     }
 
+  // Send email for user confirmation
     await this.mailerService.sendUserConfirmation(newUser, tokenOTP);
+    
     // 4. generate accessToken and refreshToken using JWT
     const payload = {
       userId: newUser.id,
       email: newUser.email,
-      roles: newUser.roles,
+      roles: newUser.role,
     };
 
     const { accessToken, refreshToken, expiredInAccessToken } =
@@ -86,7 +88,7 @@ export class AuthService {
     const payload = {
       userId: user.id,
       email: user.email,
-      roles: user.roles,
+      roles: user.role,
     };
     const { accessToken, refreshToken, expiredInAccessToken } = await this.createTokenPair(payload);
     if (user.isVerified) {
@@ -147,7 +149,6 @@ export class AuthService {
   }
 
   async validateAccessToken(accessToken: string): Promise<boolean> {
-    console.log("1233333333333333")
     const foundedToken = await this.tokenService.findAccessToken(accessToken);
     return foundedToken ? true : false;
   }
@@ -197,7 +198,7 @@ export class AuthService {
     const payload = {
       userId: holderUser.id,
       email: holderUser.email,
-      roles: holderUser.roles,
+      roles: holderUser.role,
     };
 
     const { expiredInAccessToken, ...tokens } =

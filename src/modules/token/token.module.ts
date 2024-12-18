@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
+import { SequelizeModule } from '@nestjs/sequelize';
 import { TokenService } from './token.service';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from '../users/user.module';
 import { Token } from './entities/token.entity';
-import { PrismaModule } from 'prisma/prisma.module';
-
+import { UsersModule } from '../users/user.module';
 @Module({
-  imports: [TypeOrmModule.forFeature([Token]), UsersModule, PrismaModule],
+  imports: [
+    SequelizeModule.forFeature([Token]), // Sử dụng SequelizeModule để khai báo model Token
+    UsersModule, // Kết nối với UsersModule
+  ],
   providers: [TokenService],
   exports: [TokenService],
 })

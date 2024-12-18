@@ -1,13 +1,11 @@
-import { DataSource } from 'typeorm';
-import { Seeder, SeederFactoryManager, runSeeder } from 'typeorm-extension';
-import UserSeeder from './user.seeder';
+import { Sequelize } from 'sequelize';
+import { UserSeeder } from './user.seeder';
 
-export class MainSeeder implements Seeder {
-  track?: boolean;
-  async run(
-    dataSource: DataSource,
-    factoryManager: SeederFactoryManager,
-  ): Promise<void> {
-    await runSeeder(dataSource, UserSeeder);
+export class MainSeeder {
+  constructor(private sequelize: Sequelize) {}
+
+  async run(): Promise<void> {
+    console.log('Running Main Seeder...');
+    await UserSeeder.run(this.sequelize);
   }
 }

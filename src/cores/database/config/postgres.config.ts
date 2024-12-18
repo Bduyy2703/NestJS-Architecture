@@ -1,31 +1,33 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { SequelizeModule } from '@nestjs/sequelize';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { SequelizeModuleOptions } from '@nestjs/sequelize'; // Import SequelizeModuleOptions
 import { User } from '../../../modules/users/entities/user.entity';
 
 @Module({
   imports: [
-    // ConfigModule đảm bảo biến môi trường được nạp trước
     ConfigModule.forRoot({
-      isGlobal: true, // Để ConfigModule khả dụng toàn ứng dụng
-      envFilePath: ['.env.development'], // Đường dẫn đến file .env
+      isGlobal: true,
+      envFilePath: ['.env.development'], // Đường dẫn file env
     }),
 
-    TypeOrmModule.forRootAsync({
+    SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DEV_DB_HOST'),
-        port: configService.get<number>('DEV_DB_PORT'),
-        username: configService.get<string>('DEV_DB_USERNAME', 'postgres'),
-        password: configService.get<string>('DEV_DB_PASSWORD'),
-        database: configService.get<string>('DEV_DB_DATABASE'),
-        entities: [User], // Khai báo các entities (hoặc sử dụng auto-load nếu cần)
-        synchronize: true, // Tự động đồng bộ cơ sở dữ liệu (chỉ nên dùng cho môi trường phát triển)
-        retryAttempts: 5,
-        retryDelay: 3000,
-      }),
+      useFactory: (configService: ConfigService): SequelizeModuleOptions => {
+        return {
+          dialect: 'postgres',
+          host: configService.get<string>('DEV_DB_HOST'),
+          port: configService.get<number>('DEV_DB_PORT'),
+          username: configService.get<string>('DEV_DB_USERNAME', 'postgres'),
+          password: configService.get<string>('DEV_DB_PASSWORD'),
+          database: configService.get<string>('DEV_DB_DATABASE'),
+          models: [User], // Liệt kê các model ở đây
+          autoLoadModels: true, // Tự động tải model
+          synchronize: true, // Đồng bộ hóa với DB (dùng cho môi trường dev)
+          logging: true, // Bật SQL logging
+        };
+      },
     }),
   ],
 })
